@@ -4,12 +4,16 @@ use crate::constant::GLOBAL_AUTHORITY_SEED;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    #[account(init, payer = admin, space = 8 + GlobalPool::DATA_SIZE, seeds = [GLOBAL_AUTHORITY_SEED], bump)]
+    #[account(
+        init,
+        payer = admin,
+        seeds = [GLOBAL_AUTHORITY_SEED],
+        bump,
+        space = GlobalPool::DATA_SIZE
+    )]
     pub global_pool: Account<'info, GlobalPool>,
-
     #[account(mut)]
     pub admin: Signer<'info>,
-
     pub system_program: Program<'info, System>,
 }
 

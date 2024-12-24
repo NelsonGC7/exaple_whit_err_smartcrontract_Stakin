@@ -5,8 +5,9 @@ import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 
 describe("pnfts", () => {
   // Configure the client to use the local cluster.
-  
+
   const provider = AnchorProvider.env();
+
   anchor.setProvider(provider);
 
   const program = anchor.workspace.Pnfts as Program<Pnfts>;
@@ -17,19 +18,34 @@ describe("pnfts", () => {
   const tokenMint = new anchor.web3.PublicKey("3kvfe38eNdHe1PVtBUnS1wwirweXEzw2FLE88fKssmgr");
   const tokenMetadataProgram = new anchor.web3.PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
-  it("Is initialized!", async () => {
+  let globalPoolPda: anchor.web3.PublicKey;
+  before(async () => {
+    [globalPoolPda] = await anchor.web3.PublicKey.findProgramAddress(
+      [Buffer.from("global-authority")],
+      program.programId
+    );
+
     try {
-      await program.methods.initialize().accounts({
-        globalPool: globalPool.publicKey,
-        admin: provider.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([provider.wallet.payer, globalPool]).rpc(); // Asegúrate de que provider.wallet.payer y globalPool estén en la lista de firmantes
-      console.log("GlobalPool initialized with address:", globalPool.publicKey.toString());
+      await program.methods.initialize()
+        .accounts({
+          globalPool: globalPoolPda,
+          admin: provider.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .rpc();
+      console.log("Global pool initialized.");
+
+          // Realizamos el fetch de la cuenta globalPool para confirmar su estado
+    const globalPoolState = await program.account.globalPool.fetch(globalPoolPda);
+    console.log("Fetched Global Pool State:", {
+      admin: globalPoolState.admin.toBase58(),
+      totalPnftStakedCount: globalPoolState.totalPnftStakedCount.toNumber(),
+
+      });
     } catch (error) {
-      console.error("Error initializing GlobalPool:", error);
+      console.error("Error initializing global pool:", error);
     }
   });
-
   it("Locks a pNFT", async () => {
     try {
       const tokenAccount = await getAssociatedTokenAddress(tokenMint, provider.wallet.publicKey);
@@ -53,8 +69,9 @@ describe("pnfts", () => {
       const authRulesProgram = anchor.web3.Keypair.generate().publicKey;
 
       const tx = await program.methods.lockPnft().accounts({
+        payer: provider.wallet.publicKey,
         user: provider.wallet.publicKey,
-        globalPool: globalPool.publicKey,
+        globalPool: globalPoolPda,
         tokenMint: tokenMint,
         tokenAccount: tokenAccount,
         tokenMintEdition: editionPDA,
@@ -97,9 +114,8 @@ describe("pnfts", () => {
       const userPubkey = provider.wallet.publicKey;
 
       const tx = await program.methods.unlockPnft().accounts({
-        payer: provider.wallet.publicKey,
         user: userPubkey,
-        globalPool: globalPool.publicKey,
+        globalPool: globalPoolPda,
         tokenMint: tokenMint,
         tokenAccount: tokenAccount,
         tokenMintEdition: editionPDA,
